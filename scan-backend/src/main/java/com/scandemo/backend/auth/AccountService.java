@@ -112,6 +112,50 @@ public class AccountService implements ApplicationRunner {
             throw new IllegalArgumentException("该账号已停用，请联系管理员");
         }
         fails.remove(name);
+        return issueToken(acc);
+    }
+
+    /** 免密选择登录：采集页直接选业务账号进入；管理员账号必须走密码登录，防止绕过维护页门禁 */
+    @Transactional
+    public Map<String, Object> selectAccount(Long accountId) {
+        if (accountId == null) {
+            throw new IllegalArgumentException("请选择账号");
+        }
+        Account acc = require(accountId);
+        if (!acc.isEnabled()) {
+            throw new IllegalArgumentException("该账号已停用，请联系管理员");
+        }
+        if (acc.isAdmin()) {
+            throw new IllegalArgumentException("管理员账号请从「管理员登录」入口输密码进入");
+        }
+        return issueToken(acc);
+    }
+
+    /** 采集页选择器数据：按部门分组的启用业务账号（不含管理员、不含任何敏感字段） */
+    public java.util.List<Map<String, Object>> pickerOptions() {
+        java.util.Map<String, java.util.List<Map<String, Object>>> byDept = new java.util.LinkedHashMap<>();
+        for (Account a : accountRepo.findAllByOrderByIdAsc()) {
+            if (!a.isEnabled() || a.isAdmin()) {
+                continue;
+            }
+            String dept = trimToNull(a.getDept());
+            String key = dept == null ? "未分组" : dept;
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", a.getId());
+            item.put("name", a.getDisplayName() == null || a.getDisplayName().isEmpty() ? a.getLoginName() : a.getDisplayName());
+            byDept.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(item);
+        }
+        java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+        for (Map.Entry<String, java.util.List<Map<String, Object>>> e : byDept.entrySet()) {
+            Map<String, Object> g = new java.util.LinkedHashMap<>();
+            g.put("dept", e.getKey());
+            g.put("accounts", e.getValue());
+            out.add(g);
+        }
+        return out;
+    }
+
+    private Map<String, Object> issueToken(Account acc) {
         tokenRepo.deleteByExpiresAtBefore(LocalDateTime.now());
         AuthToken t = new AuthToken();
         byte[] buf = new byte[32];
@@ -124,6 +168,7 @@ public class AccountService implements ApplicationRunner {
         out.put("token", t.getToken());
         out.put("loginName", acc.getLoginName());
         out.put("displayName", acc.getDisplayName() == null ? acc.getLoginName() : acc.getDisplayName());
+        out.put("dept", acc.getDept());
         out.put("isAdmin", acc.isAdmin());
         return out;
     }
@@ -183,7 +228,7 @@ public class AccountService implements ApplicationRunner {
     }
 
     @Transactional
-    public Account createAccount(String loginName, String password, String displayName,
+    public Account createAccount(String loginName, String password, String displayName, String dept,
                                  String appKey, String appSecret, String whCode,
                                  boolean isAdmin, boolean enabled) {
         String name = loginName == null ? "" : loginName.trim();
@@ -193,11 +238,22 @@ public class AccountService implements ApplicationRunner {
         if (accountRepo.findByLoginName(name).isPresent()) {
             throw new IllegalArgumentException("登录名已存在：" + name);
         }
-        checkPassword(password);
+        // 业务账号免密（采集页选择即进入）；管理员账号必须设密码，用于维护页登录
+        String pwd;
+        if (isAdmin) {
+            checkPassword(password);
+            pwd = password.trim();
+        } else {
+            pwd = (password == null || password.trim().isEmpty()) ? randomPassword() : password.trim();
+            if (pwd.length() < 6) {
+                throw new IllegalArgumentException("密码至少 6 位");
+            }
+        }
         Account acc = new Account();
         acc.setLoginName(name);
-        acc.setPasswordHash(encoder.encode(password));
+        acc.setPasswordHash(encoder.encode(pwd));
         acc.setDisplayName(displayName);
+        acc.setDept(trimToNull(dept));
         acc.setAppKey(trimToNull(appKey));
         acc.setAppSecret(trimToNull(appSecret));
         acc.setWhCode(trimToNull(whCode));
@@ -206,9 +262,9 @@ public class AccountService implements ApplicationRunner {
         return accountRepo.save(acc);
     }
 
-    /** 编辑账号；password/appKey/appSecret 传空表示保持不变 */
+    /** 编辑账号；password/appKey/appSecret 传空表示保持不变；dept 传空串表示移出部门（未分组），null 表示不改 */
     @Transactional
-    public Account updateAccount(Long operatorId, Long id, String displayName, String appKey,
+    public Account updateAccount(Long operatorId, Long id, String displayName, String dept, String appKey,
                                  String appSecret, String whCode, Boolean isAdmin, Boolean enabled,
                                  String newPassword) {
         Account acc = require(id);
@@ -222,6 +278,9 @@ public class AccountService implements ApplicationRunner {
         }
         if (displayName != null) {
             acc.setDisplayName(displayName);
+        }
+        if (dept != null) {
+            acc.setDept(trimToNull(dept));
         }
         if (appKey != null && !appKey.trim().isEmpty()) {
             acc.setAppKey(appKey.trim());

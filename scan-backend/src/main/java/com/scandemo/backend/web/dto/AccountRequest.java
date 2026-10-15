@@ -1,11 +1,12 @@
 package com.scandemo.backend.web.dto;
 
-/** 新建/编辑账号（编辑时 password/appKey/appSecret 传空 = 保持不变） */
+/** 新建/编辑账号（编辑时 password/appKey/appSecret 传空 = 保持不变；dept 不传 = 不改，传空串 = 移出部门） */
 public class AccountRequest {
 
     private String loginName;
     private String password;
     private String displayName;
+    private String dept;
     private String appKey;
     private String appSecret;
     private String whCode;
@@ -34,6 +35,14 @@ public class AccountRequest {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getDept() {
+        return dept;
+    }
+
+    public void setDept(String dept) {
+        this.dept = dept;
     }
 
     public String getAppKey() {

@@ -1,33 +1,65 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录 · 采集系统</title><style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#e8f1ff 0%,#f0f2f5 60%);color:#1f2329;font:14px Arial,"Microsoft YaHei",sans-serif}
-.card{width:100%;max-width:380px;background:#fff;border-radius:12px;padding:30px 28px;box-shadow:0 4px 20px rgba(22,119,255,.08)}
-h1{font-size:20px;margin:0 0 4px;text-align:center}.sub{color:#646a73;font-size:13px;text-align:center;margin:0 0 22px}
-label{display:block;color:#646a73;font-size:13px;margin:14px 0 6px}
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>选择账号 · 采集系统</title><style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;background:linear-gradient(160deg,#e8f1ff 0%,#f0f2f5 60%);color:#1f2329;font:14px Arial,"Microsoft YaHei",sans-serif;padding:24px 14px}
+.card{width:100%;max-width:460px;background:#fff;border-radius:12px;padding:26px 22px;box-shadow:0 4px 20px rgba(22,119,255,.08)}
+h1{font-size:20px;margin:0 0 4px;text-align:center}.sub{color:#646a73;font-size:13px;text-align:center;margin:0 0 20px}
+.step{color:#646a73;font-size:13px;margin:16px 0 8px;font-weight:bold}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{min-height:44px;padding:8px 16px;border:1px solid #d0d3d6;border-radius:10px;background:#fafbfc;font-size:15px;cursor:pointer;color:#1f2329}
+.chip.sel{border-color:#1677ff;background:#e8f1ff;color:#1677ff;font-weight:bold}
+.chip.acc{width:100%;text-align:left;background:#fff}
+.chip.acc:last-child{margin-bottom:0}
+.hint{color:#9aa0a6;font-size:13px;text-align:center;padding:14px 0}
+.err{color:#d4380d;font-size:13px;min-height:18px;margin-top:12px;text-align:center}
+.fold{margin-top:22px;border-top:1px solid #eceef0;padding-top:12px;text-align:center}
+.fold a{color:#9aa0a6;font-size:13px;cursor:pointer;text-decoration:none}
+#adminBox{display:none;margin-top:12px}
+label{display:block;color:#646a73;font-size:13px;margin:12px 0 6px}
 input{width:100%;height:42px;padding:0 12px;border:1px solid #d0d3d6;border-radius:8px;font-size:15px;color:#1f2329}
 input:focus{outline:none;border-color:#1677ff}
-button{width:100%;height:42px;margin-top:22px;border:0;border-radius:8px;background:#1677ff;color:#fff;font-size:15px;cursor:pointer}
-button:disabled{opacity:.6;cursor:not-allowed}
-.err{color:#d4380d;font-size:13px;min-height:18px;margin-top:12px;text-align:center}
+#goBtn{width:100%;height:42px;margin-top:16px;border:0;border-radius:8px;background:#1677ff;color:#fff;font-size:15px;cursor:pointer}
+#goBtn:disabled{opacity:.6;cursor:not-allowed}
 </style></head><body><div class="card">
-<h1>采集系统</h1><p class="sub">扫码采集 · 账号维护 · OMS 推送</p>
-<label>账号</label><input id="lUser" autocomplete="username" autofocus>
-<label>密码</label><input id="lPass" type="password" autocomplete="current-password">
-<div class="err" id="lErr"></div>
-<button id="lBtn">登 录</button>
+<h1>采集系统</h1><p class="sub">选择你的账号即可进入，无需密码</p>
+<div id="pick">
+  <div class="step">① 选择部门</div><div class="chips" id="depts"><div class="hint">加载中…</div></div>
+  <div class="step">② 选择账号</div><div class="chips" id="accs" style="flex-direction:column"><div class="hint">请先选部门</div></div>
+</div>
+<div class="err" id="pErr"></div>
+<div class="fold"><a id="admToggle">管理员登录 ›</a></div>
+<div id="adminBox">
+  <label>账号</label><input id="lUser" autocomplete="username">
+  <label>密码</label><input id="lPass" type="password" autocomplete="current-password">
+  <button id="goBtn">登 录</button>
+</div>
 </div><script>
 const $=s=>document.querySelector(s);
 const qs=new URLSearchParams(location.search);
 const next=(qs.get('next')||'/api/draft').replace(/^https?:\/\/[^/]+/,'');
 const tokenGet=()=>{try{return localStorage.getItem('scanToken')||''}catch(e){return ''}};
 const tokenSet=t=>{try{localStorage.setItem('scanToken',t||'')}catch(e){}};
-async function doLogin(){const u=$('#lUser').value.trim(),p=$('#lPass').value;if(!u||!p){$('#lErr').textContent='账号和密码都要填';return}
-$('#lBtn').disabled=true;$('#lErr').textContent='';
+const memo=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const recall=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}};
+let groups=[],curDept='';
+function err(t){$('#pErr').textContent=t||''}
+async function load(){err('');try{const r=await fetch('/api/auth/options');const j=await r.json();if(j.code!==0)throw new Error(j.msg||'加载失败');groups=j.data||[];renderDepts()}catch(e){$('#depts').innerHTML='<div class="hint">账号列表加载失败</div>';err(e.message||String(e))}}
+function renderDepts(){const d=$('#depts');if(!groups.length){d.innerHTML='<div class="hint">还没有业务账号：请先由管理员在「账号维护」里创建</div>';$('#accs').innerHTML='';return}
+curDept=groups.some(g=>g.dept===recall('scanDeptLast'))?recall('scanDeptLast'):groups[0].dept;
+d.innerHTML=groups.map(g=>'<button class="chip'+(g.dept===curDept?' sel':'')+'" data-d="'+encodeURIComponent(g.dept)+'">'+g.dept+'</button>').join('');renderAccs()}
+$('#depts').addEventListener('click',e=>{const b=e.target.closest('[data-d]');if(!b)return;curDept=decodeURIComponent(b.dataset.d);memo('scanDeptLast',curDept);document.querySelectorAll('#depts .chip').forEach(x=>x.className='chip'+(x===b?' sel':''));renderAccs()});
+function renderAccs(){const g=groups.find(x=>x.dept===curDept);const last=recall('scanAccLast');$('#accs').innerHTML=g&&g.accounts.length?g.accounts.map(a=>'<button class="chip acc" data-a="'+a.id+'" data-n="'+encodeURIComponent(a.name)+'">'+a.name+(String(a.id)===last?' <small style="color:#9aa0a6">（上次使用）</small>':'')+'</button>').join(''):'<div class="hint">该部门下暂无账号</div>'}
+$('#accs').addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b)return;err('');
+try{const r=await fetch('/api/auth/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId:+b.dataset.a})});const j=await r.json();if(j.code!==0)throw new Error(j.msg||'进入失败');
+tokenSet(j.data.token);memo('scanAccLast',b.dataset.a);location.replace(next)}catch(ex){err(ex.message||String(ex))}});
+// ===== 管理员：折叠的密码登录 =====
+$('#admToggle').onclick=()=>{const box=$('#adminBox');const open=box.style.display==='block';box.style.display=open?'none':'block';$('#admToggle').textContent=open?'管理员登录 ›':'收起管理员登录'};
+async function doLogin(){const u=$('#lUser').value.trim(),p=$('#lPass').value;if(!u||!p){err('管理员账号和密码都要填');return}
+$('#goBtn').disabled=true;err('');
 try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loginName:u,password:p})});const j=await r.json();
 if(j.code!==0)throw new Error(j.msg||'登录失败');
 tokenSet(j.data.token);location.replace(next)}
-catch(e){$('#lErr').textContent=e.message||String(e)}finally{$('#lBtn').disabled=false}}
-$('#lBtn').onclick=doLogin;
+catch(e){err(e.message||String(e))}finally{$('#goBtn').disabled=false}}
+$('#goBtn').onclick=doLogin;
 $('#lPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 // 本地有令牌的先验证有效性，有效直接进目标页（无效则留在本页，避免和目标页互相跳转成环）
-(async()=>{if(!tokenGet())return;try{const r=await fetch('/api/session',{headers:{'X-Token':tokenGet()}});if(r.ok){const j=await r.json();if(j.code===0)location.replace(next)}}catch(e){}})();
+(async()=>{if(tokenGet()){try{const r=await fetch('/api/session',{headers:{'X-Token':tokenGet()}});if(r.ok){const j=await r.json();if(j.code===0){location.replace(next);return}}}catch(e){}}load()})();
 </script></body></html>

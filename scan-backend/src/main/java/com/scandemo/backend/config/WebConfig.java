@@ -32,7 +32,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/**")
-                // 登录页/登录接口/健康检查/草稿页 HTML 本身不需要令牌（页面里再登录或跳转登录页）
-                .excludePathPatterns("/api/auth/login", "/api/health", "/api/draft", "/api/login");
+                // 登录页/登录接口/选择登录/健康检查/维护页 HTML 本身不需要令牌（页面里再登录或跳转选择页）
+                .excludePathPatterns("/api/auth/login", "/api/auth/select", "/api/auth/options", "/api/health", "/api/draft", "/api/login");
     }
 }

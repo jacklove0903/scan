@@ -33,7 +33,7 @@ a.op{color:#1677ff;cursor:pointer;padding:2px 6px;text-decoration:none}
   <button id="btnOut" class="btn ghost">退出</button>
 </div>
 <div class="card" style="padding:0 16px">
-<table><thead><tr><th>登录名</th><th>名称</th><th>仓库</th><th>appKey</th><th>密钥</th><th>管理员</th><th>状态</th><th>可推送</th><th>操作</th></tr></thead><tbody id="accRows"><tr><td colspan="9" class="empty">加载中…</td></tr></tbody></table>
+<table><thead><tr><th>登录名</th><th>名称</th><th>部门</th><th>仓库</th><th>appKey</th><th>密钥</th><th>管理员</th><th>状态</th><th>可推送</th><th>操作</th></tr></thead><tbody id="accRows"><tr><td colspan="10" class="empty">加载中…</td></tr></tbody></table>
 </div>
 <div class="msg" id="amsg"></div>
 </div>
@@ -46,9 +46,10 @@ a.op{color:#1677ff;cursor:pointer;padding:2px 6px;text-decoration:none}
 <div class="card">
   <div class="sec">登录信息</div>
   <div class="grid">
-    <div class="fld"><label><i>*</i>登录名</label><input id="acName" placeholder="用于采集页/账号维护页登录"></div>
-    <div class="fld"><label>密码<span id="acPwdHint" class="hidden">（留空=不修改）</span></label><input id="acPwd" type="password" placeholder="至少 6 位"></div>
-    <div class="fld"><label>显示名称</label><input id="acDisplay" placeholder="如：美中休斯顿3仓"></div>
+    <div class="fld"><label><i>*</i>登录名</label><input id="acName" placeholder="仅作唯一标识，同事选账号时看的是显示名称"></div>
+    <div class="fld"><label>密码<span id="acPwdHint" class="hidden">（留空=不修改）</span></label><input id="acPwd" type="password" placeholder="仅管理员账号需要；普通账号免密留空即可"></div>
+    <div class="fld"><label>显示名称</label><input id="acDisplay" placeholder="如：张三 / 李四"></div>
+    <div class="fld"><label>部门</label><input id="acDept" list="deptList" placeholder="如：百货 / 鞋子 / 服装1部 / 服装2部（可自定义）"><datalist id="deptList"></datalist></div>
   </div>
 </div>
 <div class="card">
@@ -82,7 +83,7 @@ function show(v){document.querySelectorAll("#accountsView,#accEditView").forEach
 function note(el,t,ok){$(el).innerHTML='<div class="'+(ok?"ok":"err")+'">'+esc(t)+"</div>"}
 async function api(url,opt){opt=opt||{};opt.headers=Object.assign({"X-Token":tokenGet()},opt.headers||{});const r=await fetch(url,opt);if(r.status===401){toLogin();throw new Error("登录已过期，请重新登录")}const j=await r.json();if(j.code!==0)throw new Error(j.msg||"请求失败");return j.data}
 function toLogin(){tokenSet('');location.replace('/api/login?next='+encodeURIComponent(location.pathname||'/api/draft'))}
-async function boot(){try{me=await api("/api/session");await loadCfg();show("#accountsView");if(me.isAdmin){loadAccounts()}else{$("#aNew").className="btn primary hidden";$("#accRows").innerHTML='<tr><td colspan="9" class="empty">当前账号非管理员，无法维护账号；你仍可修改密码或退出。</td></tr>'}}catch(e){if(!tokenGet())toLogin()}}
+async function boot(){try{me=await api("/api/session");await loadCfg();show("#accountsView");if(me.isAdmin){loadAccounts()}else{$("#aNew").className="btn primary hidden";$("#btnPwd").className="btn ghost hidden";$("#accRows").innerHTML='<tr><td colspan="10" class="empty">当前账号非管理员，无法维护账号；可直接使用采集页。管理员入口请用「管理员登录」。</td></tr>'}}catch(e){if(!tokenGet())toLogin()}}
 async function loadCfg(){try{const d=await api("/api/config");$("#cfg").innerHTML="当前账号 <b>"+esc(d.displayName)+"</b>（"+esc(d.loginName)+"）"+(d.isAdmin?"· <b>管理员</b>":"")+" · 仓库 <b>"+esc(d.whCode||"(未配置)")+"</b> · appKey <b>"+esc(d.appKey||"(未配置)")+"</b> · "+(d.canPush?"<b>可推送</b>":'<span class="bad">OMS 配置不完整</span>')}catch(e){$("#cfg").innerHTML='<span class="bad">配置加载失败：'+esc(e.message)+"</span>"}}
 $("#btnOut").onclick=async()=>{try{await api("/api/auth/logout",{method:"POST"})}catch(e){}toLogin()};
 // ===== 修改密码 =====
@@ -92,16 +93,18 @@ $("#pOk").onclick=async()=>{try{await api("/api/auth/password",{method:"POST",he
 // ===== 账号维护（管理员） =====
 $("#aNew").onclick=()=>openAccEdit(null);
 $("#acBack").onclick=()=>show("#accountsView");
-async function loadAccounts(){try{const d=await api("/api/accounts");$("#accRows").innerHTML=d.length?d.map(a=>"<tr><td class='sku'>"+esc(a.loginName)+(a.self?"（我）":"")+"</td><td>"+esc(a.displayName||"-")+"</td><td>"+esc(a.whCode||"-")+"</td><td>"+esc(a.appKey||"-")+"</td><td>"+(a.appSecretSet?"已设置":"<span class='miss'>未设置</span>")+"</td><td>"+(a.isAdmin?"是":"-")+"</td><td>"+(a.enabled?"启用":"<span class='miss'>停用</span>")+"</td><td>"+(a.canPush?"<span class='oms'>可推送</span>":"<span class='miss'>不完整</span>")+"</td><td><a class='op' data-acc='"+a.id+"'>编辑</a></td></tr>").join(""):'<tr><td colspan="9" class="empty">还没有账号</td></tr>'}catch(e){$("#accRows").innerHTML='<tr><td colspan="9" class="empty">加载失败：'+esc(e.message)+"</td></tr>"}}
+async function loadAccounts(){try{const d=await api("/api/accounts");const ds=[...new Set(d.map(a=>a.dept).filter(Boolean))];$("#deptList").innerHTML=ds.map(x=>"<option value='"+esc(x)+"'>").join("");$("#accRows").innerHTML=d.length?d.map(a=>"<tr><td class='sku'>"+esc(a.loginName)+(a.self?"（我）":"")+"</td><td>"+esc(a.displayName||"-")+"</td><td>"+esc(a.dept||"-")+"</td><td>"+esc(a.whCode||"-")+"</td><td>"+esc(a.appKey||"-")+"</td><td>"+(a.appSecretSet?"已设置":"<span class='miss'>未设置</span>")+"</td><td>"+(a.isAdmin?"是":"-")+"</td><td>"+(a.enabled?"启用":"<span class='miss'>停用</span>")+"</td><td>"+(a.canPush?"<span class='oms'>可推送</span>":"<span class='miss'>不完整</span>")+"</td><td><a class='op' data-acc='"+a.id+"'>编辑</a></td></tr>").join(""):'<tr><td colspan="10" class="empty">还没有账号</td></tr>'}catch(e){$("#accRows").innerHTML='<tr><td colspan="10" class="empty">加载失败：'+esc(e.message)+"</td></tr>"}}
 $("#accRows").addEventListener("click",async e=>{const t=e.target;if(!t.dataset||!t.dataset.acc)return;try{const d=await api("/api/accounts");const a=d.find(x=>String(x.id)===String(t.dataset.acc));if(a)openAccEdit(a)}catch(err){note("#amsg","读取失败："+err.message)}});
 function openAccEdit(a){accEditId=a?a.id:null;$("#accTitle").textContent=a?("编辑账号 "+a.loginName):"新建账号";
 $("#acName").value=a?a.loginName:"";$("#acName").disabled=!!a;$("#acPwd").value="";$("#acDisplay").value=a?(a.displayName||""):"";
+$("#acDept").value=a?(a.dept||""):"";
 $("#acWh").value=a?(a.whCode||""):"";$("#acKey").value="";$("#acSec").value="";
 $("#acKey").placeholder=a?(a.appKey||"")+"（留空不改）":"OMS 后台的 appKey";
 $("#acPwdHint").className=a?"":"hidden";$("#acKeyHint").className=a?"":"hidden";$("#acSecHint").className=a?"":"hidden";
 $("#acAdmin").checked=a?a.isAdmin:false;$("#acEnabled").checked=a?a.enabled:true;$("#acErr").textContent="";show("#accEditView")}
-$("#acSave").onclick=async()=>{const body={loginName:$("#acName").value.trim(),password:$("#acPwd").value,displayName:$("#acDisplay").value.trim(),whCode:$("#acWh").value.trim(),appKey:$("#acKey").value.trim(),appSecret:$("#acSec").value.trim(),isAdmin:$("#acAdmin").checked,enabled:$("#acEnabled").checked};
+$("#acSave").onclick=async()=>{const body={loginName:$("#acName").value.trim(),password:$("#acPwd").value,displayName:$("#acDisplay").value.trim(),dept:$("#acDept").value.trim(),whCode:$("#acWh").value.trim(),appKey:$("#acKey").value.trim(),appSecret:$("#acSec").value.trim(),isAdmin:$("#acAdmin").checked,enabled:$("#acEnabled").checked};
 if(!body.loginName){$("#acErr").textContent="登录名必填";return}
+if(body.isAdmin&&!accEditId&&!body.password){$("#acErr").textContent="管理员账号必须设置密码（维护页登录用）";return}
 try{if(accEditId){await api("/api/accounts/"+accEditId,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}else{await api("/api/accounts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}note("#amsg","已保存",true);show("#accountsView");loadAccounts()}catch(e){$("#acErr").textContent=e.message}};
 // ===== 启动：无令牌直接去独立登录页 =====
 if(tokenGet()){boot()}else{toLogin()}

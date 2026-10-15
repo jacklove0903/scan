@@ -43,7 +43,7 @@ public class AccountController {
     public ApiResponse<Map<String, Object>> create(@RequestBody AccountRequest req) {
         service.requireAdmin(CurrentAccount.get());
         Account a = service.createAccount(req.getLoginName(), req.getPassword(), req.getDisplayName(),
-                req.getAppKey(), req.getAppSecret(), req.getWhCode(),
+                req.getDept(), req.getAppKey(), req.getAppSecret(), req.getWhCode(),
                 Boolean.TRUE.equals(req.getIsAdmin()), !Boolean.FALSE.equals(req.getEnabled()));
         return ApiResponse.ok(toView(a, CurrentAccount.get()));
     }
@@ -51,7 +51,7 @@ public class AccountController {
     @PutMapping("/{id}")
     public ApiResponse<Map<String, Object>> update(@PathVariable Long id, @RequestBody AccountRequest req) {
         service.requireAdmin(CurrentAccount.get());
-        Account a = service.updateAccount(CurrentAccount.get(), id, req.getDisplayName(),
+        Account a = service.updateAccount(CurrentAccount.get(), id, req.getDisplayName(), req.getDept(),
                 req.getAppKey(), req.getAppSecret(), req.getWhCode(),
                 req.getIsAdmin(), req.getEnabled(), req.getPassword());
         return ApiResponse.ok(toView(a, CurrentAccount.get()));
@@ -63,6 +63,7 @@ public class AccountController {
         m.put("id", a.getId());
         m.put("loginName", a.getLoginName());
         m.put("displayName", a.getDisplayName());
+        m.put("dept", a.getDept());
         m.put("whCode", a.getWhCode());
         m.put("appKey", AccountService.mask(a.getAppKey()));
         m.put("appSecretSet", a.getAppSecret() != null && !a.getAppSecret().isEmpty());

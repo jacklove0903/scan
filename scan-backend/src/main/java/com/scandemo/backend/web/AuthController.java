@@ -38,6 +38,19 @@ public class AuthController {
         return ApiResponse.ok(service.login(body.get("loginName"), body.get("password")));
     }
 
+    /** 采集页选择器数据与免密选择登录（均免令牌）：select 只放行启用中的业务账号，管理员账号会被拒绝 */
+    @GetMapping("/api/auth/options")
+    public ApiResponse<java.util.List<Map<String, Object>>> options() {
+        return ApiResponse.ok(service.pickerOptions());
+    }
+
+    @PostMapping("/api/auth/select")
+    public ApiResponse<Map<String, Object>> select(@RequestBody Map<String, Object> body) {
+        Object id = body.get("accountId");
+        Long accountId = id == null ? null : Long.parseLong(String.valueOf(id));
+        return ApiResponse.ok(service.selectAccount(accountId));
+    }
+
     @PostMapping("/api/auth/logout")
     public ApiResponse<Void> logout(@RequestHeader(value = AuthInterceptor.TOKEN_HEADER, required = false) String token) {
         service.logout(token);
@@ -50,6 +63,7 @@ public class AuthController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("loginName", acc.getLoginName());
         data.put("displayName", acc.getDisplayName() == null ? acc.getLoginName() : acc.getDisplayName());
+        data.put("dept", acc.getDept());
         data.put("isAdmin", acc.isAdmin());
         return ApiResponse.ok(data);
     }

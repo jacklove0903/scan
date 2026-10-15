@@ -128,6 +128,54 @@ class AuthFlowTest {
     }
 
     @Test
+    void picker_select_noPasswordLogin() throws Exception {
+        String adminTok = login("admin", "itest-admin-seed-9");
+        String name = "pk" + System.currentTimeMillis() % 100000;
+        // 建免密业务账号（无 password、带部门）
+        mvc.perform(with(post("/api/accounts"), adminTok).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginName\":\"" + name + "\",\"displayName\":\" picker测试员 \",\"dept\":\"百货\",\"whCode\":\"WH-PK\"}"))
+                .andExpect(status().isOk());
+
+        // options 免令牌可取：按部门分组、不含管理员、不含任何敏感字段
+        MvcResult opt = mvc.perform(get("/api/auth/options")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.dept=='百货')]").exists())
+                .andReturn();
+        JsonNode groups = MAPPER.readTree(opt.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        long accId = -1; long adminId = -1;
+        JsonNode all = MAPPER.readTree(mvc.perform(with(get("/api/accounts"), adminTok))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        for (JsonNode a : all) {
+            if (name.equals(a.path("loginName").asText())) accId = a.path("id").asLong();
+            if ("admin".equals(a.path("loginName").asText())) adminId = a.path("id").asLong();
+        }
+        assertTrue(accId > 0 && adminId > 0);
+        boolean listedInPicker = false;
+        for (JsonNode g : groups) {
+            for (JsonNode it : g.path("accounts")) {
+                if (it.path("id").asLong() == accId) listedInPicker = true;
+                if (it.path("id").asLong() == adminId) org.junit.jupiter.api.Assertions.fail("管理员不该出现在选择器里");
+            }
+        }
+        assertTrue(listedInPicker, "业务账号应出现在 options 里");
+
+        // 免密选择直接进入：拿到的令牌可访问业务接口
+        MvcResult sel = mvc.perform(post("/api/auth/select").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":" + accId + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.isAdmin").value(false)).andReturn();
+        String tok = MAPPER.readTree(sel.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data").path("token").asText();
+        mvc.perform(with(get("/api/session"), tok)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.loginName").value(name))
+                .andExpect(jsonPath("$.data.dept").value("百货"));
+        mvc.perform(with(get("/api/accounts"), tok)).andExpect(status().isForbidden());
+
+        // 管理员账号不许免密选择（维护页门禁）
+        mvc.perform(post("/api/auth/select").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountId\":" + adminId + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.containsString("管理员")));
+    }
+
+    @Test
     void changePassword_invalidatesOldTokens() throws Exception {
         String name = "pw" + System.currentTimeMillis() % 100000;
         String adminTok = login("admin", "itest-admin-seed-9");

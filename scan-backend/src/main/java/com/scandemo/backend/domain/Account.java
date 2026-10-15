@@ -30,6 +30,10 @@ public class Account {
     @Column(name = "display_name", length = 50)
     private String displayName;
 
+    /** 部门分组（自定义名称，如 百货/鞋子/服装1部/服装2部），采集页选账号时按此分组 */
+    @Column(length = 50)
+    private String dept;
+
     @Column(name = "oms_app_key", length = 100)
     private String appKey;
 
@@ -93,6 +97,14 @@ public class Account {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getDept() {
+        return dept;
+    }
+
+    public void setDept(String dept) {
+        this.dept = dept;
     }
 
     public String getAppKey() {
