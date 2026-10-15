@@ -139,6 +139,9 @@ public class AccountService implements ApplicationRunner {
                 continue;
             }
             String dept = trimToNull(a.getDept());
+            if (dept == null) {
+                dept = deptFromName(a.getDisplayName()); // 老账号没填部门时，从「xxx（百货）」这类名称尾部括号自动识别
+            }
             String key = dept == null ? "未分组" : dept;
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", a.getId());
@@ -153,6 +156,18 @@ public class AccountService implements ApplicationRunner {
             out.add(g);
         }
         return out;
+    }
+
+    private static final java.util.regex.Pattern TRAILING_BRACKET =
+            java.util.regex.Pattern.compile("[(（]([^()（）]+)[)）]\\s*$");
+
+    /** 取名称尾部括号里的文字作为部门，如 "JY6666（百货）" -> 百货；没有则 null */
+    private static String deptFromName(String displayName) {
+        if (displayName == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = TRAILING_BRACKET.matcher(displayName.trim());
+        return m.find() ? m.group(1).trim() : null;
     }
 
     private Map<String, Object> issueToken(Account acc) {
