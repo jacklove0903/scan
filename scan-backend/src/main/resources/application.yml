@@ -1,0 +1,38 @@
+server:
+  port: 8090
+
+# 初始管理员密码（仅首次启动建 admin 账号时用）：仓库里不存放任何默认密码。
+# - 不配置：首次启动自动生成一个随机密码，只在启动日志里打印一次，登录后请立即修改；
+# - 想自定义：设环境变量 ADMIN_INIT_PASSWORD=xxx（或系统属性 -Dadmin.init.password=xxx）。
+# 生产真实密钥同样走环境变量，绝不下发到页面或提交进仓库。
+
+spring:
+  datasource:
+    # 文件型 H2：数据存在运行目录 data/ 下，重启不丢；换 MySQL 时改这里和 pom 依赖即可
+    url: jdbc:h2:file:./data/scan-demo;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  jackson:
+    deserialization:
+      # 采集页上传的 JSON 里有额外字段（count 等），不认识就忽略，别报错
+      fail-on-unknown-properties: false
+
+# OMS OpenAPI 配置：appKey/appSecret 从 OMS 后台「API 信息」获取
+# 真实密钥不入库：通过环境变量 OMS_APP_KEY / OMS_APP_SECRET 注入；留空则用「账号维护」页里各账号自配的密钥
+oms:
+  base-url: https://api.xlwms.com
+  app-key: "${OMS_APP_KEY:}"
+  app-secret: "${OMS_APP_SECRET:}"   # 只放服务端，切勿下发到页面
+  wh-code: "TX03"        # 美中休斯顿3仓
+  inbound-type: 1        # 1-常规入库/一件代发（OMS 后台截图确认）
+  arrival-mode: 2        # 到仓方式：箱（OMS 后台截图确认）
+  is-submit: 0           # 0=创建后不自动提交（在 OMS 里是草稿状态，需人工在 OMS 界面提交）；1=创建即提交到 WMS
+  box-mark-increment-type: 2  # 1 自增 2 相同箱型合并
+  units-per-box: 1       # TODO 待确认：每箱产品数量（OMS productList[].quantity，必填）
+  connect-timeout-ms: 5000
+  read-timeout-ms: 15000

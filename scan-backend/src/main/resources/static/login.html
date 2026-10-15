@@ -1,0 +1,33 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录 · 采集系统</title><style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#e8f1ff 0%,#f0f2f5 60%);color:#1f2329;font:14px Arial,"Microsoft YaHei",sans-serif}
+.card{width:100%;max-width:380px;background:#fff;border-radius:12px;padding:30px 28px;box-shadow:0 4px 20px rgba(22,119,255,.08)}
+h1{font-size:20px;margin:0 0 4px;text-align:center}.sub{color:#646a73;font-size:13px;text-align:center;margin:0 0 22px}
+label{display:block;color:#646a73;font-size:13px;margin:14px 0 6px}
+input{width:100%;height:42px;padding:0 12px;border:1px solid #d0d3d6;border-radius:8px;font-size:15px;color:#1f2329}
+input:focus{outline:none;border-color:#1677ff}
+button{width:100%;height:42px;margin-top:22px;border:0;border-radius:8px;background:#1677ff;color:#fff;font-size:15px;cursor:pointer}
+button:disabled{opacity:.6;cursor:not-allowed}
+.err{color:#d4380d;font-size:13px;min-height:18px;margin-top:12px;text-align:center}
+</style></head><body><div class="card">
+<h1>采集系统</h1><p class="sub">扫码采集 · 账号维护 · OMS 推送</p>
+<label>账号</label><input id="lUser" autocomplete="username" autofocus>
+<label>密码</label><input id="lPass" type="password" autocomplete="current-password">
+<div class="err" id="lErr"></div>
+<button id="lBtn">登 录</button>
+</div><script>
+const $=s=>document.querySelector(s);
+const qs=new URLSearchParams(location.search);
+const next=(qs.get('next')||'/api/draft').replace(/^https?:\/\/[^/]+/,'');
+const tokenGet=()=>{try{return localStorage.getItem('scanToken')||''}catch(e){return ''}};
+const tokenSet=t=>{try{localStorage.setItem('scanToken',t||'')}catch(e){}};
+async function doLogin(){const u=$('#lUser').value.trim(),p=$('#lPass').value;if(!u||!p){$('#lErr').textContent='账号和密码都要填';return}
+$('#lBtn').disabled=true;$('#lErr').textContent='';
+try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loginName:u,password:p})});const j=await r.json();
+if(j.code!==0)throw new Error(j.msg||'登录失败');
+tokenSet(j.data.token);location.replace(next)}
+catch(e){$('#lErr').textContent=e.message||String(e)}finally{$('#lBtn').disabled=false}}
+$('#lBtn').onclick=doLogin;
+$('#lPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+// 本地有令牌的先验证有效性，有效直接进目标页（无效则留在本页，避免和目标页互相跳转成环）
+(async()=>{if(!tokenGet())return;try{const r=await fetch('/api/session',{headers:{'X-Token':tokenGet()}});if(r.ok){const j=await r.json();if(j.code===0)location.replace(next)}}catch(e){}})();
+</script></body></html>

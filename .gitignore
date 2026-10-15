@@ -1,0 +1,35 @@
+# ===== 密钥，绝不提交 =====
+certs/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ===== 本地开发临时产物（下划线开头的一律不入库）=====
+/_*
+*.log
+*.tar.gz
+
+# ===== IDE =====
+.idea/
+*.iml
+
+# ===== 后端构建产物 =====
+target/
+*.class
+*.jar
+!**/maven-wrapper.jar
+data/
+*.mv.db
+*.trace.db
+
+# ===== 系统 =====
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ===== 部署 / 本地辅助脚本，不入库 =====
+deploy/
+*.ps1
+*.py
+*.sh

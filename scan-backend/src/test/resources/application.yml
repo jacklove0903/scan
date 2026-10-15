@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:scan-test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+
+oms:
+  # 测试绝不联真实 OMS：指向一个必然连不上的本机端口，防止误发网络请求
+  base-url: http://127.0.0.1:9
+  app-key: test-key
+  app-secret: test-secret
+  wh-code: TEST-WH
+  inbound-type: 1
+  arrival-mode: 2
+  is-submit: 1
+  box-mark-increment-type: 2
+  units-per-box: 1
+  connect-timeout-ms: 1000
+  read-timeout-ms: 1000
+
+# 测试专用初始管理员密码（一眼假的 fixture，非任何真实凭据）；种子账号用它建 admin
+admin.init.password: itest-admin-seed-9
