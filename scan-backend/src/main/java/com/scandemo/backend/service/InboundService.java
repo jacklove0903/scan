@@ -29,8 +29,9 @@ import java.util.Map;
  * OMS 凭证（appKey/appSecret/whCode）来自当前登录账号——每个账号推自己 OMS 的单。
  *
  * 组装规则：
- * - 相同 SKU + 长宽高 + 重量 + 单箱数量 的记录合并成一条箱型（ctns 求和）；
- * - 每条箱型对应 productList 一条：sku + 单箱数量（quantity）；
+ * - 带 boxGroup 的记录（同箱多 SKU）：同一 boxGroup 合成一个箱型，箱级尺寸/重量/箱子数量取组内第一条，
+ *   组内每条记录的 SKU+单箱数量作为 productList 的一个元素；
+ * - 不带 boxGroup 的记录：每条记录各自成一条箱型（不合并），productList 一条，箱子数量取本条 qty；
  * - thirdOrderNo 按推送时刻生成（SCAN-yyyyMMddHHmmss）。
  */
 @Service
@@ -223,32 +224,50 @@ public class InboundService {
     }
 
     /** 组装 data（字段依据「创建入库单」接口文档；whCode 用当前账号的仓库） */
+    @SuppressWarnings("unchecked")
     Map<String, Object> buildData(List<ScanRecord> temps, String thirdOrderNo, Account acc) {
-        // 相同 SKU+尺寸+重量+单箱数量 合并：单箱数量不同的是不同箱型，不能合并
-        Map<String, Map<String, Object>> groups = new LinkedHashMap<>();
+        // 按箱归组：
+        //  - 有 boxGroup：同一组 = 一个箱型（同箱多 SKU），箱级尺寸/重量/箱子数量取组内第一条；
+        //  - 无 boxGroup：每条记录独立成一条箱型（不合并，箱子数量取本条 qty）。
+        Map<String, Map<String, Object>> boxes = new LinkedHashMap<>();
         for (ScanRecord r : temps) {
-            String key = r.getSku() + "|" + plain(r.getLength()) + "|" + plain(r.getWidth())
-                    + "|" + plain(r.getHeight()) + "|" + plain(r.getWeight())
-                    + "|" + (r.getUnitsPerBox() == null ? "-" : r.getUnitsPerBox());
-            Map<String, Object> box = groups.get(key);
+            String bg = r.getBoxGroup();
+            boolean grouped = bg != null && !bg.trim().isEmpty();
+            String key = grouped
+                    ? "BG:" + bg.trim()
+                    // 不合并：每条记录各自成一条箱型（key 按记录唯一）
+                    : "REC:" + (r.getId() != null ? r.getId() : System.identityHashCode(r));
+
+            Map<String, Object> box = boxes.get(key);
             if (box == null) {
                 box = new LinkedHashMap<>();
-                box.put("ctns", 0);
+                // 组箱：箱子数量取第一条（后续同箱记录只贡献 SKU）；单条记录从 0 累加本条 qty
+                box.put("ctns", grouped ? r.getQty() : 0);
                 // 入库回读的 BigDecimal 带 .000 尾零（列精度 scale=3），这里规范化成最简形式
                 box.put("length", normalized(r.getLength()));
                 box.put("width", normalized(r.getWidth()));
                 box.put("height", normalized(r.getHeight()));
                 box.put("weight", normalized(r.getWeight()));
-                List<Map<String, Object>> productList = new ArrayList<>();
-                Map<String, Object> product = new LinkedHashMap<>();
-                product.put("sku", r.getSku());
-                // 单箱数量：优先用记录上的值（必填），老数据兜底用全局配置
-                product.put("quantity", r.getUnitsPerBox() != null ? r.getUnitsPerBox() : props.getUnitsPerBox());
-                productList.add(product);
-                box.put("productList", productList);
-                groups.put(key, box);
+                box.put("productList", new ArrayList<Map<String, Object>>());
+                boxes.put(key, box);
             }
-            box.put("ctns", ((Integer) box.get("ctns")) + r.getQty());
+
+            Map<String, Object> product = new LinkedHashMap<>();
+            product.put("sku", r.getSku());
+            // 单箱数量：优先用记录上的值（必填），老数据兜底用全局配置
+            product.put("quantity", r.getUnitsPerBox() != null ? r.getUnitsPerBox() : props.getUnitsPerBox());
+            List<Map<String, Object>> productList = (List<Map<String, Object>>) box.get("productList");
+
+            if (grouped) {
+                // 同箱多 SKU：每条记录都是 productList 的一个元素
+                productList.add(product);
+            } else {
+                // 不合并：本条记录独立成箱，只有一个 product，箱子数量 = 本条 qty
+                if (productList.isEmpty()) {
+                    productList.add(product);
+                }
+                box.put("ctns", ((Integer) box.get("ctns")) + r.getQty());
+            }
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -259,12 +278,8 @@ public class InboundService {
         data.put("isSubmit", props.getIsSubmit());
         data.put("forecastType", 1);
         data.put("boxMarkIncrementType", props.getBoxMarkIncrementType());
-        data.put("boxTypeList", new ArrayList<>(groups.values()));
+        data.put("boxTypeList", new ArrayList<>(boxes.values()));
         return data;
-    }
-
-    private static String plain(BigDecimal v) {
-        return v == null ? "" : v.stripTrailingZeros().toPlainString();
     }
 
     /** 52.000 -> 52，12.500 -> 12.5；用 toPlainString 避免 stripTrailingZeros 产生科学计数法（5.2E+1） */

@@ -46,8 +46,11 @@ public class OmsClient {
     public JsonNode createInboundOrder(String authcode, String dataJson, String reqTime, String appKey) throws IOException {
         String url = props.getBaseUrl() + "/openapi/v1/inboundOrder/create?authcode=" + authcode;
         String body = OmsSigner.body(appKey, dataJson, reqTime);
-        log.info("推送 OMS 入库单: body 长度={}", body.length());
-        return postJson(url, body);
+        log.info("== 推送 OMS 请求 == appKey={} reqTime={} body长度={}", appKey, reqTime, body.length());
+        log.info("== 推送 OMS 请求 data == {}", dataJson);
+        JsonNode resp = postJson(url, body);
+        log.info("== 推送 OMS 响应 == {}", resp);
+        return resp;
     }
 
     /**

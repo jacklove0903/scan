@@ -43,6 +43,8 @@ public class RecordService {
             r.setWeight(d.getWgt());
             r.setQty(d.getQty());
             r.setUnitsPerBox(d.getUnits());
+            String bg = d.getBoxGroup() == null ? null : d.getBoxGroup().trim();
+            r.setBoxGroup(bg == null || bg.isEmpty() ? null : bg);
             r.setStatus(RecordStatus.TEMP);
             r.setBatchNo(batchNo);
             entities.add(r);

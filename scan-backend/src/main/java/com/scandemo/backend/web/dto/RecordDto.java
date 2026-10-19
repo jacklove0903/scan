@@ -14,6 +14,8 @@ public class RecordDto {
     private Integer qty;
     /** 单箱数量（每箱内装多少个小箱/件） */
     private Integer units;
+    /** 箱分组号：同箱多 SKU 时共享同一值；为空表示独立成箱 */
+    private String boxGroup;
     /** 采集时间（毫秒），仅作参考 */
     private Long ts;
 
@@ -79,6 +81,14 @@ public class RecordDto {
 
     public void setUnits(Integer units) {
         this.units = units;
+    }
+
+    public String getBoxGroup() {
+        return boxGroup;
+    }
+
+    public void setBoxGroup(String boxGroup) {
+        this.boxGroup = boxGroup;
     }
 
     public Long getTs() {

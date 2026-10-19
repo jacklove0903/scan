@@ -89,30 +89,33 @@ class ScanFlowTest {
                 .andExpect(jsonPath("$.data[0].length").value(52))
                 .andExpect(jsonPath("$.data[0].unitsPerBox").value(18));
 
-        // 3) dryRun：SKU-A 前两条（同尺寸同单箱数量 18）合并为 ctns=20；
-        //    第 4 条单箱数量 12 不同，必须是独立箱型；SKU-B 单独一条 —— 共 3 个箱型
+        // 3) dryRun：不合并——每条记录各自成一条箱型（箱子数量取本条 qty），共 4 个箱型
         MvcResult dry = mvc.perform(authed(post("/api/inbound/push").param("dryRun", "true")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.recordCount").value(4))
-                .andExpect(jsonPath("$.data.boxTypeCount").value(3))
+                .andExpect(jsonPath("$.data.boxTypeCount").value(4))
                 .andReturn();
         JsonNode data = MAPPER.readTree(dry.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
         assertTrue(data.path("thirdOrderNo").asText().startsWith("SCAN-"));
         assertTrue(data.path("signString").asText().startsWith("test-key"));
         assertEquals(64, data.path("authcode").asText().length());
         JsonNode boxTypeList = MAPPER.readTree(data.path("dataJson").asText()).path("boxTypeList");
-        assertEquals(20, boxTypeList.get(0).path("ctns").asInt());
+        // 箱型按记录顺序（no 升序）逐个成条，不再合并同 SKU
+        assertEquals(12, boxTypeList.get(0).path("ctns").asInt());
         assertEquals("52", boxTypeList.get(0).path("length").asText());
         assertEquals("18", boxTypeList.get(0).path("weight").asText());
         assertEquals("SKU-A", boxTypeList.get(0).path("productList").get(0).path("sku").asText());
-        // 单箱数量进 OMS productList[].quantity（分组按首次出现排序：A/18、B/1、A/12）
         assertEquals(18, boxTypeList.get(0).path("productList").get(0).path("quantity").asInt());
-        assertEquals("SKU-B", boxTypeList.get(1).path("productList").get(0).path("sku").asText());
-        assertEquals(1, boxTypeList.get(1).path("productList").get(0).path("quantity").asInt());
-        assertEquals("SKU-A", boxTypeList.get(2).path("productList").get(0).path("sku").asText());
-        assertEquals(12, boxTypeList.get(2).path("productList").get(0).path("quantity").asInt());
-        assertEquals(2, boxTypeList.get(2).path("ctns").asInt());
+        assertEquals(8, boxTypeList.get(1).path("ctns").asInt());
+        assertEquals("SKU-A", boxTypeList.get(1).path("productList").get(0).path("sku").asText());
+        assertEquals(18, boxTypeList.get(1).path("productList").get(0).path("quantity").asInt());
+        assertEquals(3, boxTypeList.get(2).path("ctns").asInt());
+        assertEquals("SKU-B", boxTypeList.get(2).path("productList").get(0).path("sku").asText());
+        assertEquals(1, boxTypeList.get(2).path("productList").get(0).path("quantity").asInt());
+        assertEquals(2, boxTypeList.get(3).path("ctns").asInt());
+        assertEquals("SKU-A", boxTypeList.get(3).path("productList").get(0).path("sku").asText());
+        assertEquals(12, boxTypeList.get(3).path("productList").get(0).path("quantity").asInt());
 
         // 4) dryRun 不该改变状态
         mvc.perform(authed(get("/api/records").param("status", "TEMP")))

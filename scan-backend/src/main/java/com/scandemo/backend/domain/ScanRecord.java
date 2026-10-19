@@ -55,6 +55,15 @@ public class ScanRecord {
     @Column(name = "units_per_box")
     private Integer unitsPerBox;
 
+    /**
+     * 箱分组号：同一箱（同箱多 SKU）的记录共享同一个值。
+     * 组装入库单时，同一 boxGroup 的记录合并成一个箱型（boxTypeList 一条），
+     * 箱级尺寸/重量/箱子数量取组内第一条，每条记录的 SKU+单箱数量进 productList。
+     * 为空表示独立成箱（单 SKU 箱，沿用旧的逐条合并逻辑）。
+     */
+    @Column(name = "box_group", length = 40)
+    private String boxGroup;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private RecordStatus status = RecordStatus.TEMP;
@@ -173,6 +182,14 @@ public class ScanRecord {
 
     public void setUnitsPerBox(Integer unitsPerBox) {
         this.unitsPerBox = unitsPerBox;
+    }
+
+    public String getBoxGroup() {
+        return boxGroup;
+    }
+
+    public void setBoxGroup(String boxGroup) {
+        this.boxGroup = boxGroup;
     }
 
     public RecordStatus getStatus() {
