@@ -32,7 +32,7 @@ oms:
   inbound-type: 1        # 1-常规入库/一件代发（OMS 后台截图确认）
   arrival-mode: 2        # 到仓方式：箱（OMS 后台截图确认）
   is-submit: 0           # 0=创建后不自动提交（在 OMS 里是草稿状态，需人工在 OMS 界面提交）；1=创建即提交到 WMS
-  box-mark-increment-type: 2  # 1 自增 2 相同箱型合并
+  box-mark-increment-type: 1  # 1 自增（相同箱型不合并，每箱独立成行）；2 相同箱型合并
   units-per-box: 1       # TODO 待确认：每箱产品数量（OMS productList[].quantity，必填）
   connect-timeout-ms: 5000
   read-timeout-ms: 15000

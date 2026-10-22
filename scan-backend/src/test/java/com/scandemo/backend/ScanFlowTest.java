@@ -129,6 +129,29 @@ class ScanFlowTest {
     }
 
     @Test
+    void twoIdenticalBoxesWithDistinctBoxGroup_notMerged() throws Exception {
+        // 复现采集页真实场景：两个相同 SKU 的箱子，各自 1 箱，boxGroup 不同（saveBox 每次生成新 gid）
+        String payload = "{\"count\":2,\"records\":["
+                + "{\"no\":1,\"sku\":\"0026BH\",\"len\":\"52\",\"wid\":\"41\",\"hei\":\"50\",\"wgt\":\"18\",\"qty\":\"1\",\"units\":\"1\",\"boxGroup\":\"Gaaa111\",\"ts\":1696000000000},"
+                + "{\"no\":2,\"sku\":\"0026BH\",\"len\":\"52\",\"wid\":\"41\",\"hei\":\"50\",\"wgt\":\"18\",\"qty\":\"1\",\"units\":\"1\",\"boxGroup\":\"Gbbb222\",\"ts\":1696000001000}"
+                + "]}";
+        mvc.perform(authed(post("/api/records/batch")).contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.saved").value(2));
+        MvcResult dry = mvc.perform(authed(post("/api/inbound/push").param("dryRun", "true")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recordCount").value(2))
+                .andExpect(jsonPath("$.data.boxTypeCount").value(2))
+                .andReturn();
+        JsonNode data = MAPPER.readTree(dry.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        JsonNode boxTypeList = MAPPER.readTree(data.path("dataJson").asText()).path("boxTypeList");
+        // 后端应发出 2 个独立箱型，各 ctns=1（是否再被 OMS 归并显示由 OMS 决定）
+        assertEquals(2, boxTypeList.size());
+        assertEquals(1, boxTypeList.get(0).path("ctns").asInt());
+        assertEquals(1, boxTypeList.get(1).path("ctns").asInt());
+    }
+
+    @Test
     void pushWithoutConfig_fails_dryRun_okEvenWithoutSecret() throws Exception {
         // 空暂存时推送应报错而不是 500
         mvc.perform(authed(post("/api/inbound/push")))
